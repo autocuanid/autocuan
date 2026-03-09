@@ -235,10 +235,25 @@ function doPost(e) {
       case "get_bio_link": return jsonRes(getBioLink(data));
       case "get_quota_status": return jsonRes({ status: "success", data: checkQuota() });
       case "check_system_health": return jsonRes(checkSystemHealth());
+      case "clear_cache": return jsonRes(clearCache());
       default: return jsonRes({ status: "error", message: "Aksi tidak terdaftar: " + (action || "unknown") });
     }
   } catch (err) {
     return jsonRes({ status: "error", message: err.toString() });
+  }
+}
+
+/* =========================
+   MANUAL CACHE CLEARING
+========================= */
+function clearCache() {
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove("settings_map");
+    cache.remove("access_rules");
+    return { status: "success", message: "Cache Backend Berhasil Direset!" };
+  } catch (e) {
+    return { status: "error", message: e.toString() };
   }
 }
 
@@ -883,7 +898,7 @@ function getProducts(d, cfg, cachedOrders) {
   // OPTIMIZATION: Only fetch sheets if needed, reuse cached if passed
   const rules = getCachedData_("access_rules", () => {
      return mustSheet_("Access_Rules").getDataRange().getValues();
-  }, 3600); // 1 hour cache for rules
+  }, 300); // 5 minutes cache for rules
 
   const orders = cachedOrders || mustSheet_("Orders").getDataRange().getValues();
   const users = mustSheet_("Users").getDataRange().getValues(); // Often changes, might need real-time
@@ -1195,6 +1210,7 @@ function saveProduct(d) {
       for (let i = 1; i < r.length; i++) {
         if (String(r[i][0]).trim() === String(d.id).trim()) {
           s.getRange(i + 1, 1, 1, 12).setValues([dataRow]);
+          try { CacheService.getScriptCache().remove("access_rules"); } catch(e){}
           return { status: "success" };
         }
       }
@@ -1208,6 +1224,7 @@ function saveProduct(d) {
         }
       }
       s.appendRow(dataRow);
+      try { CacheService.getScriptCache().remove("access_rules"); } catch(e){}
       return { status: "success" };
     }
   } catch (e) {
@@ -1356,6 +1373,7 @@ function updateSettings(d) {
     }
     if (!f) s.appendRow([k, d.payload[k]]);
   }
+  try { CacheService.getScriptCache().remove("settings_map"); } catch(e){}
   return { status: "success" };
 }
 
